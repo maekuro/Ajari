@@ -2,30 +2,144 @@
 
 ## Setup
 
-- 検証時の環境
-  - node: 16.13.0
-  - Python: 3.9.13
+## セットアップ手順
 
-### node.js
+### 前提条件
 
-```sh
-$ yarn
-```
+* **Homebrew:** パッケージマネージャー Homebrew がインストールされている必要があります。
+* **nodenv:** Node.js のバージョン管理ツールとして nodenv を使用します。
 
-### Python (cert-issuer を利用可能にするため)
+### 手順
 
-```sh
-$ pyenv local 3.9.13
-$ python -m venv venv
-$ source venv/bin/activate
-$ pip install --upgrade pip
-$ pip install -r requirements.txt
+1. **Node.js のインストールとバージョン設定**
 
-# openssl 関連エラー発生時は以下で解決できたケースあり
-$ env LDFLAGS="-L$(brew --prefix openssl)/lib" CFLAGS="-I$(brew --prefix openssl)/include" pip --no-cache-dir install -r requirements.txt
+   * nodenv を使って Node.js 18.0.0 をインストールし、グローバルバージョンに設定します。
 
-$ cert-issuer -h
-```
+     ```bash
+     /usr/local/bin/nodenv install 18.0.0
+     /usr/local/bin/nodenv global 18.0.0
+     ```
+
+   * 正しく設定されたか確認します。
+
+     ```bash
+     node -v 
+     ```
+
+     * `v18.0.0` のように表示されればOKです。
+
+2. **yarn のインストール**
+
+   * `npm` を使って `yarn` をグローバルにインストールします。 `nodenv` を使用している場合は、`nodenv exec` を使って `nodenv` の環境下で実行する必要があります。
+
+     ```bash
+     nodenv exec npm install -g yarn
+     ```
+
+3. **Python 環境の準備**
+
+   * `pyenv` を使って Python 3.9.13 をインストールし、ローカルバージョンに設定します。
+
+     ```bash
+     /usr/local/bin/pyenv install 3.9.13
+     /usr/local/bin/pyenv local 3.9.13
+     ```
+
+   * `Ajari` プロジェクトのルートディレクトリに移動します。
+
+     ```bash
+     cd /Users/matsudahidehiko/git/fan-mily/Ajari # 適宜パスを修正
+     ```
+
+   * 仮想環境を作成し、アクティブ化します。
+
+     ```bash
+     /Users/matsudahidehiko/git/fan-mily/Ajari % python -m venv venv
+     /Users/matsudahidehiko/git/fan-mily/Ajari % source venv/bin/activate
+     ```
+
+   * `pip` を最新版にアップグレードします。
+
+     ```bash
+     (venv) /Users/matsudahidehiko/git/fan-mily/Ajari % pip install --upgrade pip
+     ```
+
+4. **必要なパッケージのインストール**
+
+   * `coincurve` と `pysha3` をビルドするために必要なパッケージをインストールします。
+
+     ```bash
+     brew install automake libtool pango
+     ```
+
+   * `requirements.txt` に記載された Python パッケージをインストールします。 `openssl` 関連のエラーが発生する場合は、環境変数を設定してインストールします。
+
+     ```bash
+     (venv) /Users/matsudahidehiko/git/fan-mily/Ajari % env LDFLAGS="-L$(brew --prefix openssl)/lib" CFLAGS="-I$(brew --prefix openssl)/include" pip install -r requirements.txt
+     ```
+
+   * `coincurve` と `pysha3` のビルドでエラーが発生した場合は、以下の手順で手動ビルドを試みてください。
+
+     1. `coincurve` のビルド
+
+        * `coincurve` のソースコードをダウンロードします。（すでにダウンロード済みの場合は不要です）
+
+          ```bash
+          /Users/matsudahidehiko/git/fan-mily/Ajari % cd .. 
+          /Users/matsudahidehiko/git/fan-mily % git clone https://github.com/ofek/coincurve.git
+          ```
+
+        * `coincurve` のディレクトリに移動し、ビルドディレクトリを作成して移動します。
+
+          ```bash
+          /Users/matsudahidehiko/git/fan-mily % cd coincurve
+          /Users/matsudahidehiko/git/fan-mily/coincurve % mkdir build
+          /Users/matsudahidehiko/git/fan-mily/coincurve % cd build
+          ```
+
+        * `CMake` を使ってビルドの設定を行い、ビルドとインストールを実行します。
+
+          ```bash
+          (venv) /Users/matsudahidehiko/git/fan-mily/coincurve/build % export OPENSSL_ROOT_DIR=$(brew --prefix openssl)
+          (venv) /Users/matsudahidehiko/git/fan-mily/coincurve/build % cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/local 
+          (venv) /Users/matsudahidehiko/git/fan-mily/coincurve/build % make
+          (venv) /Users/matsudahidehiko/git/fan-mily/coincurve/build % make install
+          ```
+
+     2. `pysha3` のビルド
+
+        * 仮想環境内で `python3-config --includes` を実行し、出力結果から `pystrhex.h` が含まれるパスを確認します。
+
+          ```bash
+          (venv) /Users/matsudahidehiko/git/fan-mily/Ajari % python3-config --includes
+          ```
+
+        * 確認したパスを `CFLAGS` に設定し、`pip install` を再実行します。
+
+          ```bash
+          (venv) /Users/matsudahidehiko/git/fan-mily/Ajari % export CFLAGS="-I<取得した include パス> -I/opt/homebrew/opt/openssl@3/include" 
+          (venv) /Users/matsudahidehiko/git/fan-mily/Ajari % cd coincurve/build 
+          (venv) /Users/matsudahidehiko/git/fan-mily/Ajari/coincurve/build % env LDFLAGS="-L$(brew --prefix openssl)/lib" pip install -r ../../requirements.txt
+          ```
+
+5. **cert-issuer の動作確認**
+
+   * `Ajari` プロジェクトのルートディレクトリに移動し、仮想環境をアクティブにした状態で、`cert-issuer` コマンドが正しくインストールされたか確認します。
+
+     ```bash
+     (venv) /Users/matsudahidehiko/git/fan-mily/Ajari % cert-issuer -h
+     ```
+
+     * ヘルプが表示されれば、セットアップ完了です。
+
+**補足**
+
+* 上記の手順は、macOS 環境を想定しています。
+* `requirements.txt` の内容は、実際のプロジェクトに合わせて修正してください。
+* 各コマンドの実行前に、仮想環境がアクティブになっていることを確認してください。
+* エラーが発生した場合は、エラーメッセージをよく読み、適切な対処を行ってください。
+
+これで、`cert-issuer` のセットアップが完了し、利用できるようになるはずです。不明な点等ございましたら、お気軽にご質問ください。
 
 ## Issuer Setup
 
